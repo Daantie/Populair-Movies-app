@@ -1,12 +1,14 @@
 package populairmovies.synleaf.com.populairmoviesapp;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Fragment;
-import android.provider.MediaStore;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -20,6 +22,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -29,6 +32,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Locale;
+
+import populairmovies.synleaf.com.populairmoviesapp.activity.DetailActivity;
 
 public class MoviesFragment extends Fragment {
     private ImageAdapter mImageAdapter;
@@ -46,12 +52,22 @@ public class MoviesFragment extends Fragment {
         View rootView =  inflater.inflate(R.layout.fragment_movies, container, false);
 
         mImageAdapter = new ImageAdapter(getActivity(), new ArrayList<Movie>());
-        GridView gridView = (GridView) container.findViewById(R.id.movies_grid);
+        GridView gridView = (GridView) rootView.findViewById(R.id.movies_grid);
         gridView.setAdapter(mImageAdapter);
 
         gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
+                Intent sendIntent = new Intent(getActivity(), DetailActivity.class);
+                sendIntent.putExtra("original_title", mImageAdapter.getItem(position).getOriginalTitle());
+                sendIntent.putExtra("release_date", mImageAdapter.getItem(position).getReadableReleaseDate());
 
+                ByteArrayOutputStream bs = new ByteArrayOutputStream();
+                mImageAdapter.getItem(position).getPoster().compress(Bitmap.CompressFormat.PNG, 50, bs);
+                sendIntent.putExtra("poster", bs.toByteArray());
+
+                sendIntent.putExtra("plot", mImageAdapter.getItem(position).getOverview());
+                sendIntent.putExtra("rating", mImageAdapter.getItem(position).getVoteAverage());
+                startActivity(sendIntent);
             }
         });
 
@@ -78,7 +94,9 @@ public class MoviesFragment extends Fragment {
     }
 
     private void updateMovies() {
-
+        FetchMoviesTask fetchMoviesTask = new FetchMoviesTask();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        fetchMoviesTask.execute(preferences.getString(getString(R.string.pref_order_key), getString(R.string.pref_order_default)));
     }
 
     public class FetchMoviesTask extends AsyncTask<String, Void, ArrayList<Movie>> {
@@ -169,7 +187,7 @@ public class MoviesFragment extends Fragment {
         }
 
         private ArrayList<Movie> getMovieDataFromJson(String moviesJsonStr) throws JSONException {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
             final String TMDB_RESULTS = "results";
             final String TMDB_ADULT = "adult";
             final String TMDB_BACKDROP_PATH = "backdrop_path";
@@ -186,7 +204,6 @@ public class MoviesFragment extends Fragment {
             final String TMDB_VOTE_AVERAGE = "vote_average";
             final String TMDB_VOTE_COUNT = "vote_count";
 
-
             JSONObject moviesJson = new JSONObject(moviesJsonStr);
             JSONArray moviesArray = moviesJson.getJSONArray(TMDB_RESULTS);
 
@@ -195,30 +212,36 @@ public class MoviesFragment extends Fragment {
             for(int i = 0; i < moviesArray.length(); i++) {
                 Movie movie = new Movie();
                 JSONObject movieObj = moviesArray.getJSONObject(i);
-                movie.setAdult(movieObj.getBoolean(TMDB_ADULT));
-                movie.setBackdrop(getBitmapFromPath(movieObj.getString(TMDB_BACKDROP_PATH)));
+                movie.setAdult(movieObj.optBoolean(TMDB_ADULT));
+                movie.setBackdrop(getBitmapFromPath(movieObj.optString(TMDB_BACKDROP_PATH)));
 
-                // TODO: movie.setGenreIds(movieObj.getJSONArray(TMDB_GENRE_IDS));
+                JSONArray genres = movieObj.getJSONArray(TMDB_GENRE_IDS);
+                int[] array = new int[genres.length()];
+                for (int j = 0; j < genres.length(); ++j) {
+                    array[j] = genres.optInt(j);
+                }
+                movie.setGenreIds(array);
 
                 movie.setId(movieObj.getInt(TMDB_ID));
-                movie.setOriginalLanguage(movieObj.getString(TMDB_ORIGINAL_LANGUAGE));
-                movie.setOriginalTitle(movieObj.getString(TMDB_ORIGINAL_TITLE));
-                movie.setOverview(movieObj.getString(TMDB_OVERVIEW));
+                movie.setOriginalLanguage(movieObj.optString(TMDB_ORIGINAL_LANGUAGE));
+                movie.setOriginalTitle(movieObj.optString(TMDB_ORIGINAL_TITLE));
+                Log.d(LOG_TAG, movie.getOriginalTitle());
+                movie.setOverview(movieObj.optString(TMDB_OVERVIEW));
 
                 try {
                     Calendar c = Calendar.getInstance();
-                    c.setTime(sdf.parse(TMDB_RELEASE_DATE));
+                    c.setTime(sdf.parse(movieObj.optString(TMDB_RELEASE_DATE)));
                     movie.setReleaseDate(c);
                 } catch (ParseException e) {
                     Log.e(LOG_TAG, "Error parsing date", e);
                 }
 
-                movie.setPoster(getBitmapFromPath(movieObj.getString(TMDB_POSTER_PATH)));
-                movie.setPopularity(movieObj.getDouble(TMDB_POPULARITY));
-                movie.setTitle(movieObj.getString(TMDB_TITLE));
-                movie.setVideo(movieObj.getBoolean(TMDB_VIDEO));
-                movie.setVoteAverage(movieObj.getDouble(TMDB_VOTE_AVERAGE));
-                movie.setVoteCount(movieObj.getInt(TMDB_VOTE_COUNT));
+                movie.setPoster(getBitmapFromPath(movieObj.optString(TMDB_POSTER_PATH)));
+                movie.setPopularity(movieObj.optDouble(TMDB_POPULARITY));
+                movie.setTitle(movieObj.optString(TMDB_TITLE));
+                movie.setVideo(movieObj.optBoolean(TMDB_VIDEO));
+                movie.setVoteAverage(movieObj.optDouble(TMDB_VOTE_AVERAGE));
+                movie.setVoteCount(movieObj.optInt(TMDB_VOTE_COUNT));
                 moviesList.add(movie);
             }
 
@@ -226,17 +249,17 @@ public class MoviesFragment extends Fragment {
         }
 
         private Bitmap getBitmapFromPath(String path) {
-            final String TMDB_BASE_URL = "http://image.tmdb.org/t/p/w185";
-            Uri builtUri = Uri.parse(TMDB_BASE_URL + path)
-                    .buildUpon()
-                    .build();
-            Bitmap bitmap = null;
-            try {
-                bitmap = MediaStore.Images.Media.getBitmap(getActivity().getContentResolver(), builtUri);
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "Error getting image", e);
+            if (path.equals("")) {
+                return null;
             }
-            return bitmap;
+            final String TMDB_BASE_URL = "https://image.tmdb.org/t/p/w185";
+            try {
+                URL url = new URL(TMDB_BASE_URL + path);
+                return BitmapFactory.decodeStream((InputStream) url.getContent());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
         }
     }
 }

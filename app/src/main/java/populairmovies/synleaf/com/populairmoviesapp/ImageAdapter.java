@@ -1,10 +1,10 @@
 package populairmovies.synleaf.com.populairmoviesapp;
 
 import android.content.Context;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.GridView;
 import android.widget.ImageView;
 
 import java.util.ArrayList;
@@ -37,19 +37,21 @@ public class ImageAdapter extends BaseAdapter {
 
     // create a new ImageView for each item referenced by the Adapter
     public View getView(int position, View convertView, ViewGroup parent) {
-        ImageView imageView;
+        LayoutInflater inflater = (LayoutInflater) mContext
+                .getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+        View gridView;
+        ImageView imageView = null;
+
         if (convertView == null) {
-            // if it's not recycled, initialize some attributes
-            imageView = new ImageView(mContext);
-            imageView.setLayoutParams(new GridView.LayoutParams(85, 85));
-            imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            imageView.setPadding(8, 8, 8, 8);
+            gridView = inflater.inflate(R.layout.grid_movie, null);
         } else {
-            imageView = (ImageView) convertView;
+            gridView = convertView;
         }
 
+        imageView = (ImageView) gridView.findViewById(R.id.grid_item_image);
         imageView.setImageBitmap(mMovies.get(position).getPoster());
 
-        return imageView;
+        return gridView;
     }
 }

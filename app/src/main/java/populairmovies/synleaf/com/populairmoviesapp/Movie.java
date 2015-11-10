@@ -2,6 +2,7 @@ package populairmovies.synleaf.com.populairmoviesapp;
 
 import android.graphics.Bitmap;
 
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 
 public class Movie {
@@ -82,6 +83,11 @@ public class Movie {
 
     public Calendar getReleaseDate() {
         return releaseDate;
+    }
+
+    public String getReadableReleaseDate() {
+        SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy");
+        return sdf.format(releaseDate.getTime());
     }
 
     public void setReleaseDate(Calendar releaseDate) {
